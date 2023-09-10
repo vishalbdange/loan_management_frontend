@@ -1,11 +1,12 @@
-import React from 'react' 
+import React from 'react'
 
-const AdminLogin = () =>
-{
-    return(
+import './UserLogin.css'
+
+const UserLogin = () => {
+    return (
 
         <div class="center">
-        <h2>Admin Login</h2>
+        <h2>Login</h2>
         <form method="post">
           <div class="txt_field">
             <input type="text" required/>
@@ -20,11 +21,15 @@ const AdminLogin = () =>
           <div class="pass">Forgot Password?</div>
           <input type="submit" value="Login"/>
           <div class="signup_link">
-           
+            Not a member? <a href="#">Signup</a>
           </div>
         </form>
       </div>
+
+        
+        
+
     )
 }
 
-export default AdminLogin;
+export default UserLogin;

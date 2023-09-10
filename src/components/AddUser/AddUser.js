@@ -2,6 +2,7 @@ import React from 'react'
 
 import './AddUser.css'
 import { useState } from "react";
+import { addEmployee } from '../api';
 
 const AddUser = () => {
 
@@ -40,13 +41,28 @@ const AddUser = () => {
       const onPasswordChange = (e) => {
         setPassword(e.target.value);
       };
+
+      const handleAddEmployee = async (e) => {
+        e.preventDefault();
+        const employee = {
+          name,
+          gender,
+          age,
+          salary,
+          email,
+          doj,
+          mobile,
+        };
+
+        await addEmployee(employee);
+      };
   
 
     return (
 
         <div class="center">
         <h2>Add User</h2>
-        <form method="post">
+        <form method="post" onSubmit={handleAddEmployee}>
           <div class="txt_field">
             <input type="text" required onChange={onNameChange}/>
             <span></span>

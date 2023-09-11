@@ -6,9 +6,11 @@ const EmployeeList = () => {
 
   useEffect(() => {
     return async () => {
-      const response = await getAll();
-      setEmployees(response);
+      const response =  await getAll();
+      console.log(response)
+      setEmployees(response)
       console.log("This is from useEffect", response);
+      console.log(employees)
     };
   }, []);
 
@@ -18,6 +20,7 @@ const EmployeeList = () => {
       <table className="table table-striped table-bordered">
         <thead>
           <tr>
+            <th>Sr. No.</th>
             <th>Name</th>
             <th>Gender</th>
             <th>Age</th>
@@ -28,7 +31,7 @@ const EmployeeList = () => {
           </tr>
         </thead>
         <tbody>
-          {employees.map((employee) => (
+          {employees?.map((employee) => (
             <tr key={employee.id}>
               <td>{employee.id}</td>
               <td>{employee.name}</td>

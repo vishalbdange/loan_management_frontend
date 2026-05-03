@@ -1,0 +1,168 @@
+You are a senior frontend engineer working on an infrastructure dependency 
+visualization tool built with React and D3.js. The backend is Java/Spring Boot 
+with a Neo4j graph database.
+
+## Context
+We have a blast radius API endpoint that returns this structure:
+GET /api/applications/{appShort}/blast-radius
+
+Response shape:
+{
+  "meta": {
+    "directCount": 6,
+    "indirectCount": 94,
+    "root": "TSEA",
+    "generatedAt": "2026-05-03T11:31:54.843Z",
+    "requestedDepth": 3,
+    "returnedCount": 100,
+    "topCritical": []
+  },
+  "nodes": [
+    {
+      "name": "EBSSH",
+      "hops": 1,
+      "criticality": null,
+      "properties": {
+        "TECHNOLOGY_AREA": "TECHCTO - CHIEF TECHNOLOGY OFFICE",
+        "App_Short": "EBSSH",
+        "TECHNOLOGY_GROUP": "CTOCXO - CHIEF DEVELOPMENT EX",
+        "name": "EBSSH",
+        "App_WF_GUID": "828E2F311B9977450BCE44336EC4BCB67",
+        "label": "EBSSH",
+        "App_Name": "EBSSH - ENTERPRISE BUSINESS STANDARDS"
+      },
+      "samplePath": ["EBSSH", "TSEA"],
+      "incomingCount": 17,
+      "outgoingCount": 29
+    }
+    // ... more nodes
+  ]
+}
+
+## What to build
+
+### 1. BlastRadiusPanel component (replaces current popup content)
+
+Build a React component `BlastRadiusPanel` that receives the API response 
+as a prop and renders:
+
+**Top metric cards row** — 4 cards in a horizontal flex row:
+- "Direct Impact": meta.directCount with subtitle "apps in hop 1"
+- "Total Blast Radius": meta.returnedCount with subtitle "apps affected"  
+- "Cascade Depth": meta.requestedDepth with subtitle "hops"
+- "Highest Risk Neighbor": compute from nodes — find the hop-1 node with 
+  highest incomingCount, show its name and incomingCount
+
+Color the Total Blast Radius card red if >50, amber if >20, green if <=20.
+
+**Hop-ring D3 visualization** — a force-directed graph with these rules:
+- Center node = root (meta.root), rendered larger, dark blue fill
+- Nodes colored by hops: hop 1 = #E05C3A (red-coral), hop 2 = #E09A3A 
+  (amber), hop 3 = #888888 (gray)
+- Node RADIUS = 6 + Math.min(node.incomingCount * 0.4, 16) 
+  so high-incomingCount nodes are visually larger
+- Only render top 8 nodes per hop (sorted by incomingCount desc), 
+  plus the root. Show a text label "+N more" near each hop ring.
+- On node hover: show tooltip with name, hops, incomingCount, outgoingCount
+- On node click: update the details panel (see below)
+- Use D3 forceSimulation with:
+    forceLink distance 80 for hop-1 links, 140 for hop-2, 180 for hop-3
+    forceCharge strength -200
+    forceCollide radius = nodeRadius + 4
+
+**Risk-ranked sidebar table** — beside the graph, show a scrollable table:
+Headers: App | Hop | Affects | Path
+- "Affects" = incomingCount value for that node
+- "Path" = samplePath joined with " → " arrows
+- Sort by incomingCount descending by default
+- Allow clicking column headers to re-sort
+- Clicking a row highlights that node in the D3 graph and shows 
+  node details below the table
+- Show first 10 rows, with "Show all N" toggle
+
+**Node detail panel** — below the table, shown when a node is clicked:
+- App full name from properties.App_Name
+- TECHNOLOGY_AREA from properties
+- TECHNOLOGY_GROUP from properties  
+- incomingCount: "X apps depend on this"
+- outgoingCount: "this depends on X apps"
+- samplePath rendered as: [A] → [B] → [ROOT] with each step as a chip
+- A "View full profile" link (no-op for now, href="#")
+
+### 2. ExploreBlastRadius page component
+
+Build a full-page React component `ExploreBlastRadius` for route 
+`/explore/blast-radius?app=TSEA`
+
+It fetches the same blast radius API on mount using the app query param.
+
+Layout: full width, two sections stacked vertically.
+
+**Section 1: Summary banner**
+- "TODSH blast radius: 100 apps across 3 hops"
+- "6 direct → 94 cascading"
+- An Export CSV button that downloads all nodes as CSV with columns:
+  name, hop, incomingCount, outgoingCount, path, App_Name, TECHNOLOGY_AREA
+
+**Section 2: Hop-lane layout (NOT force-directed)**
+Build a custom D3 layout where:
+- X axis = hop number (1, 2, 3)
+- For each hop, nodes are arranged vertically, sorted by incomingCount desc
+- Show all nodes for hop 1, top 15 for hop 2, top 10 for hop 3
+- Each node is a rect (not circle) 120×36px with app short name + 
+  incomingCount badge
+- Draw edges from root → hop1 nodes, hop1 → hop2 nodes (using samplePath 
+  to determine which hop1 node connects to which hop2 node)
+- Color coding same as above (coral/amber/gray by hop)
+- Clicking a node expands a detail card below the diagram
+
+**Section 3: Full data table**
+A full sortable, filterable table of all returned nodes.
+Columns: App Short | Full Name | Hop | Incoming Deps | Outgoing Deps | 
+         Path | Tech Area | Risk Level
+Risk Level = computed: incomingCount > 20 → "Critical" (red badge), 
+             > 10 → "High" (amber), > 4 → "Medium" (yellow), else "Low" (gray)
+Include a search/filter input that filters rows by app name.
+Include column sort on all columns.
+Include "Export CSV" button.
+
+### Technical requirements
+- Use React functional components with hooks
+- Use D3 v7 for all visualizations
+- Use CSS modules or styled-components for styling
+- No external UI component libraries (keep it self-contained)
+- All D3 rendering inside useEffect with proper cleanup
+- Handle loading state (show skeleton cards while fetching)
+- Handle empty/error state gracefully
+- The BlastRadiusPanel should work inside a modal/dialog (fixed max 
+  height 80vh, scrollable)
+- The ExploreBlastRadius page should be full height
+
+### Styling guidelines
+- Background: white or very light gray (#F8F8F8)
+- Primary color (root node, active states): #1E3A6E (dark navy)
+- Hop 1 color: #E05C3A  Hop 2 color: #E09A3A  Hop 3 color: #9E9E9E
+- Font: system-ui or Inter
+- Cards: white background, 1px border #E0E0E0, 8px border-radius, 
+  12px padding, subtle box-shadow
+- Risk badges: pill shape, colored background at 15% opacity with 
+  colored text
+
+### File structure to create
+- src/components/BlastRadius/BlastRadiusPanel.jsx
+- src/components/BlastRadius/BlastRadiusPanel.module.css
+- src/components/BlastRadius/HopRingGraph.jsx   (D3 component)
+- src/components/BlastRadius/HopLaneGraph.jsx   (D3 component for explore)
+- src/components/BlastRadius/RiskTable.jsx
+- src/components/BlastRadius/MetricCards.jsx
+- src/pages/ExploreBlastRadius.jsx
+- src/pages/ExploreBlastRadius.module.css
+
+Start by building MetricCards.jsx and BlastRadiusPanel.jsx shell, 
+then HopRingGraph.jsx, then RiskTable.jsx, then wire them together 
+in BlastRadiusPanel. Build ExploreBlastRadius last.
+
+The existing popup/dialog that calls this component already handles 
+open/close state — BlastRadiusPanel just needs to render the content.
+The existing router already handles the /explore route — 
+ExploreBlastRadius just needs to be the page component.

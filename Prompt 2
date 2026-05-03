@@ -1,0 +1,251 @@
+The BlastRadiusPanel component is working with the Impact Analysis 
+content (blast radius upstream). Now make the following changes:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1 — Two clear top-level tabs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace the current single panel content with two tabs:
+
+Tab 1: "💥 Impact Analysis"
+Tab 2: "⚠️ Failure Risk"
+
+Tab styling: active tab has a red-coral (#E05C3A) bottom border 
+and bold label. Inactive tab is gray. Tabs sit directly below 
+the panel title.
+
+Under the tab labels, show a one-line context sentence that 
+changes with the active tab:
+
+  Impact Analysis tab:
+  "If [appName] goes down → these apps will break"
+  Style: 13px, #666, italic, left-aligned
+
+  Failure Risk tab:
+  "For [appName] to stay up → these apps must be healthy"
+  Style: 13px, #666, italic, left-aligned
+
+This sentence must always be visible — it is the most important 
+UX element in the panel. It tells non-technical users exactly 
+what they are looking at.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2 — Depth selector with cascade breakdown
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a depth selector row between the context sentence and the 
+metric cards. It looks like this:
+
+  Show depth:  [1]  [2]  [3]    
+  Hop 1: 6 apps · Hop 2: 31 apps · Hop 3: 100 apps
+
+The three hop counts are always shown regardless of selected 
+depth — they come from filtering the already-fetched nodes array 
+by hops value client-side, so no extra API call is needed:
+
+  const hopCounts = {
+    1: nodes.filter(n => n.hops === 1).length,
+    2: nodes.filter(n => n.hops <= 2).length,
+    3: nodes.filter(n => n.hops <= 3).length
+  };
+
+Default selected depth: 2.
+
+When depth changes, filter the nodes shown in the graph and 
+table to only nodes where n.hops <= selectedDepth.
+The hop count breakdown stays visible at all times so the user 
+can see what they are including/excluding.
+
+Depth selector applies independently to each tab 
+(Impact Analysis and Failure Risk have separate depth state).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 3 — Impact Analysis tab (upstream, already built)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API: GET /api/applications/{appShort}/blast-radius
+(already implemented — no change to API call)
+
+Metric cards — relabel for clarity:
+
+  Card 1: "Direct Impact"
+          value = nodes where hops === 1 (filtered by selectedDepth)
+          subtitle = "apps break immediately"
+          color rule: red if >10, amber if >4, green if <=4
+
+  Card 2: "Total Impacted"
+          value = nodes where hops <= selectedDepth
+          subtitle = "apps affected at depth {selectedDepth}"
+          color rule: red if >50, amber if >20, green if <=20
+
+  Card 3: "Cascade Depth"
+          value = selectedDepth (the currently selected depth)
+          subtitle = "hops shown  (API max: {meta.requestedDepth})"
+          no color rule needed
+
+  Card 4: "Highest Risk Neighbor"
+          value = hop-1 node with highest incomingCount
+          subtitle = "{incomingCount} apps depend on them too"
+          tooltip on hover: "If this neighbor also fails, 
+          {incomingCount} additional apps are at risk"
+
+Graph: HopRingGraph existing component, filter to selectedDepth.
+Add graph title above the visualization:
+  "Upstream consumers of [appName] — apps that will break"
+  Style: 12px, #888, centered above graph
+
+Risk table column headers for this tab:
+  APP | HOP | INCOMING DEPS | OUTGOING DEPS | BLAST PATH | RISK LEVEL
+
+  "INCOMING DEPS" tooltip on hover: 
+  "How many apps depend on this app. Higher = more dangerous if it fails."
+  
+  "BLAST PATH" header tooltip:
+  "The chain from this app back to [appName]"
+
+  "RISK LEVEL" computed as:
+  incomingCount > 100 → "Critical" red badge
+  incomingCount > 30  → "High"     amber badge
+  incomingCount > 10  → "Medium"   yellow badge
+  else                → "Low"      gray badge
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 4 — Failure Risk tab (downstream, new)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API: GET /api/applications/{appShort}/failure-causes
+(this is a new endpoint — see handling below)
+
+This tab answers: "what does this app depend on, and how 
+deep does that chain go?"
+
+If the API returns 404 or fails, show a styled empty state:
+  Icon: ⚠️
+  Heading: "Failure cause data not yet available"
+  Body: "Ask your backend team to implement 
+        GET /api/applications/{appShort}/failure-causes 
+        with the same response shape as blast-radius, 
+        but traversing outgoing DEPENDS_ON edges instead 
+        of incoming."
+  Do not show an error. Do not crash. Just show this message.
+
+When the API works, the response shape is identical to 
+blast-radius. Use the same components with these differences:
+
+Metric cards — different labels:
+
+  Card 1: "Direct Dependencies"
+          value = nodes where hops === 1
+          subtitle = "apps this service directly needs"
+          color rule: red if >10, amber if >4, green if <=4
+          (many direct deps = high coupling = high risk)
+
+  Card 2: "Total Dependencies"  
+          value = nodes where hops <= selectedDepth
+          subtitle = "apps needed at depth {selectedDepth}"
+          color rule: same as above
+
+  Card 3: "Chain Depth"
+          value = selectedDepth
+          subtitle = "hops shown"
+
+  Card 4: "Biggest Single Point of Failure"
+          value = hop-1 node with highest outgoingCount
+          subtitle = "{outgoingCount} things it depends on"
+          tooltip: "If this dependency fails and has no 
+          fallback, [appName] will likely fail too"
+
+Graph: reuse HopRingGraph, pass direction="downstream" prop.
+Node color same scheme (hop 1 = coral, hop 2 = amber, 
+hop 3 = gray) — the color encodes hop distance, not direction.
+
+Add graph title above visualization:
+  "Dependencies of [appName] — apps it needs to function"
+  Style: 12px, #888, centered above graph
+
+Risk table column headers for this tab:
+  APP | HOP | OUTGOING DEPS | INCOMING DEPS | DEPENDENCY PATH | RISK LEVEL
+
+  "OUTGOING DEPS" tooltip:
+  "How many apps this dependency itself depends on. 
+  Higher = deeper chain, harder to isolate."
+
+  "INCOMING DEPS" tooltip:
+  "How many apps depend on this. Higher = shared dependency, 
+  wider impact if it fails."
+
+  "DEPENDENCY PATH" tooltip:
+  "The chain from [appName] down to this dependency"
+
+  "RISK LEVEL" for this tab computed differently:
+  A dependency is riskier if it has high incomingCount 
+  (many things share it) AND low outgoingCount redundancy:
+  
+  incomingCount > 20 AND outgoingCount < 3 → "SPOF" 
+    (single point of failure) — red badge, bold
+  incomingCount > 20                       → "Shared" amber badge
+  outgoingCount > 15                       → "Deep chain" yellow badge
+  else                                     → "Normal" gray badge
+
+  "SPOF" badge should have a tooltip:
+  "Many apps share this dependency and it has few 
+  alternatives. If it fails, [appName] and many others fail."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 5 — Shared UX details for both tabs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Each tab fetches its own API independently on first open 
+   (lazy load — don't fetch Failure Risk until that tab 
+   is clicked for the first time). Cache the result so 
+   switching tabs doesn't re-fetch.
+
+2. Loading state: show skeleton cards (gray animated pulse 
+   rectangles matching card dimensions) while fetching.
+   Show skeleton rows in the table too (5 rows).
+
+3. After the metric cards and before the graph, show the 
+   hop breakdown bar — always visible regardless of depth:
+
+   Hop 1  ████░░░░░░  6 apps
+   Hop 2  ████████░░  31 apps  ← selected
+   Hop 3  ██████████  100 apps
+
+   This is a simple horizontal bar chart. Bar width = 
+   (count / maxCount) * 100%. Selected depth row is 
+   highlighted with a colored left border.
+   Clicking a row changes the selectedDepth.
+   This replaces the [1] [2] [3] button selector — 
+   it combines the selector and the breakdown in one 
+   element.
+
+4. "Show all N" in the risk table shows ALL nodes 
+   at current depth, not just top 10.
+
+5. Explore button at bottom right of panel:
+   "Open full explore view →"
+   Links to /explore/blast-radius?app={appShort}&tab=impact 
+   or &tab=failure depending on active tab.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILES TO MODIFY (do not create new files 
+unless needed):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- BlastRadiusPanel.jsx — add tabs, depth state, 
+  context sentence, lazy fetch for failure-causes
+- MetricCards.jsx — accept a config prop that 
+  passes in label, subtitle, colorRule, tooltipText 
+  per card so both tabs can reuse it without 
+  hardcoded strings
+- HopRingGraph.jsx — accept graphTitle prop, 
+  filter nodes by selectedDepth prop
+- RiskTable.jsx — accept columnConfig prop 
+  (array of {key, label, tooltip}) so both tabs 
+  reuse the same table with different columns
+- BlastRadiusPanel.module.css — add tab styles, 
+  context sentence styles, hop breakdown bar styles
+
+Do not rewrite working code. Make surgical additions.
+Show a diff-style comment // ADDED or // MODIFIED 
+next to every changed block so I can review easily.

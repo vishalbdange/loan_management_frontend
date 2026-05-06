@@ -1,0 +1,109 @@
+Wire the selectedHop1 state in ImpactBarView 
+to also filter the RiskTable below the graph.
+This replaces the previous onNodeClick approach.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN ImpactBarView.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add prop: onSelectionChange: fn // ADDED
+
+When selectedHop1 changes, call: // ADDED
+  
+  useEffect(() => {
+    if (!selectedHop1) {
+      onSelectionChange(null);
+      return;
+    }
+    const children = allNodes.filter(n =>
+      n.hops === 2 &&
+      n.samplePath?.includes(selectedHop1)
+    );
+    onSelectionChange({
+      label: `Apps linked through ${selectedHop1}`,
+      parentName: selectedHop1,
+      nodes: children.length > 0 
+        ? children 
+        : allNodes.filter(n => n.name === selectedHop1)
+    });
+  }, [selectedHop1, allNodes]);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN BlastRadiusPanel.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add state: // ADDED
+  const [tableFilter, setTableFilter] = 
+    useState(null);
+
+Pass to ImpactBarView: // ADDED
+  onSelectionChange={setTableFilter}
+
+Pass to RiskTable: // ADDED
+  nodeFilter={tableFilter}
+  onClearFilter={() => setTableFilter(null)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN RiskTable.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Accept props: // ADDED
+  nodeFilter (object | null)
+  onClearFilter (fn)
+
+When nodeFilter is not null, show 
+filter banner above table: // ADDED
+
+  <div className={styles.filterBanner}>
+    <span>
+      📍 {nodeFilter.label}
+      <small> — {nodeFilter.nodes.length} apps</small>
+    </span>
+    <button onClick={onClearFilter}>
+      ✕ Clear
+    </button>
+  </div>
+
+Filter displayed rows: // ADDED
+  const displayedNodes = nodeFilter
+    ? allTableRows.filter(row =>
+        nodeFilter.nodes.some(n => n.name === row.name)
+      )
+    : allTableRows;
+
+When filter is active, show below banner: // ADDED
+  "Showing {displayedNodes.length} of {total} apps"
+  font-size: 11px, color: #999
+
+Sorting still works on displayedNodes.
+"Show all N" reflects filtered count when active.
+
+When nodeFilter is null: show all rows.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCROLL BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In BlastRadiusPanel.jsx, when tableFilter 
+changes and is not null: // ADDED
+
+  setTimeout(() => {
+    tableRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    });
+  }, 100);
+
+tableRef already added to RiskTable wrapper div.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- ImpactBarView bar rendering
+- HopRingGraph
+- MetricCards
+- Depth selector
+- Tab logic
+
+Mark all changes // ADDED or // MODIFIED.

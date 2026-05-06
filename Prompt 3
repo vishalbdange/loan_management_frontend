@@ -1,0 +1,204 @@
+Add a constrained expand/collapse feature to the 
+aggregate bubbles in HopRingGraph.jsx.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add to HopRingGraph component:
+
+  const [expandedBubble, setExpandedBubble] = 
+    useState(null);
+  // null = none expanded
+  // string = parentName of the expanded bubble
+
+  const EXPAND_CAP = 10;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLICK BEHAVIOR ON AGGREGATE BUBBLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When aggregate bubble is clicked:
+
+  if (expandedBubble === agg.parentName) {
+    // second click = collapse
+    setExpandedBubble(null);
+  } else {
+    // first click = expand this one, collapse any other
+    setExpandedBubble(agg.parentName);
+    // also call existing onNodeClick for table filter
+    onNodeClick({ type: 'aggregate', ...agg });
+  }
+
+When expandedBubble changes, recompute the D3 
+simulation nodes and links. Use a useEffect that 
+watches expandedBubble.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPANDED NODES — DATA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When a bubble is expanded, compute expandedNodes:
+
+  const expandedNodes = agg.linkedNodes
+    .sort((a, b) => (b.incomingCount||0) - (a.incomingCount||0))
+    .slice(0, EXPAND_CAP)
+    .map(n => ({
+      ...n,
+      nodeType: 'expanded',        // used for styling
+      parentName: agg.parentName   // which hop-1 to link to
+    }));
+
+  const remainingCount = agg.linkedNodes.length - EXPAND_CAP;
+  // if remainingCount > 0, show a "more" indicator node
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPANDED NODES — VISUAL SPECS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render expanded nodes as circles with these styles 
+(different from hop-1 nodes to signal they are 
+secondary):
+
+  Radius: 18 (fixed, smaller than hop-1)
+  Fill: #FFFFFF (white)
+  Stroke: #E09A3A (amber), width 1px
+  Stroke-dasharray: none
+  
+  Inside the circle, two text lines:
+    Line 1: node.name
+      font-size: 7px
+      font-weight: bold
+      color: #333
+      max characters: 6, truncate with ellipsis
+    Line 2: node.incomingCount + " deps"
+      font-size: 6px
+      color: #888
+
+Link from hop-1 parent to expanded node:
+  Stroke: #E09A3A at 50% opacity
+  Stroke-width: 1
+  Stroke-dasharray: "4 2"
+  No arrowhead
+
+Force simulation for expanded nodes:
+  Link distance from hop-1 parent: 65
+  Charge: -60
+  They should cluster around their hop-1 parent,
+  on the outer side away from root.
+  Add forceCollide radius 22 to prevent overlap.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"+ N MORE" INDICATOR NODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If remainingCount > 0, add one special node:
+
+  Visual:
+    Circle radius: 16
+    Fill: #F5F5F5
+    Stroke: #CCCCCC dashed
+    Text: "+ {remainingCount}"
+      font-size: 9px, color: #666, bold
+    Second line: "more"
+      font-size: 7px, color: #999
+
+  Position: linked to the hop-1 parent node,
+  same force rules as expanded nodes.
+
+  On click: do NOT expand further in graph.
+  Instead open the explore page:
+    window.open(
+      `/explore/blast-radius?app=${rootAppName}
+       &filter=${agg.parentName}&tab=impact`,
+      '_blank'
+    )
+  
+  Show cursor: pointer on hover.
+  On hover tooltip: 
+    "View all {agg.count} apps in full explore view"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AGGREGATE BUBBLE — STATE CHANGE WHEN EXPANDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When a bubble is in expanded state, change its 
+visual to indicate it is active:
+
+  Fill opacity: 40% (was 25%)
+  Stroke-width: 2px (was 1.5px)
+  Center text: change from count number to "▲ hide"
+    font-size: 8px, color: riskColor
+
+When collapsed (not expanded):
+  Center text: back to count number
+  Restore original styles
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ONLY ONE EXPANDED AT A TIME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before adding expandedNodes to the simulation,
+remove any previously expanded nodes:
+
+  // Filter out nodes of type 'expanded' and 
+  // type 'more_indicator' from previous expansion
+  const baseNodes = currentNodes.filter(n => 
+    n.nodeType !== 'expanded' && 
+    n.nodeType !== 'more_indicator'
+  );
+  const baseLinks = currentLinks.filter(l =>
+    l.linkType !== 'expanded'
+  );
+
+  // Then add new expandedNodes and their links
+  const newNodes = [...baseNodes, ...expandedNodes];
+  const newLinks = [...baseLinks, ...expandedLinks];
+
+  simulation.nodes(newNodes);
+  simulation.force('link').links(newLinks);
+  simulation.alpha(0.4).restart();
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SMOOTH ANIMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When nodes are added on expand:
+  - New nodes enter with opacity 0, 
+    transition to opacity 1 over 300ms
+  - simulation.alpha(0.4) gives a gentle 
+    re-settle rather than a full restart
+
+When nodes are removed on collapse:
+  - Exiting nodes fade out opacity 0 over 200ms
+  - Then remove from DOM
+  - simulation.alpha(0.3).restart()
+
+Use D3 enter/update/exit pattern properly.
+Do not use React state for individual node 
+positions — keep all position state in D3.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GRAPH INSTRUCTION TEXT UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update the instruction text below the graph from:
+  "Node size = incoming deps · Drag · Scroll to zoom"
+To:
+  "Node size = incoming deps · Click ◎ bubbles to 
+   expand · Click again to collapse · Drag · Scroll to zoom"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Root node rendering
+- Hop-1 node rendering  
+- Existing table filter behavior (onNodeClick still 
+  fires on bubble click)
+- Depth selector logic
+- Legend (except add one line: 
+  "○ Click bubbles to expand top 10")
+- Any code outside HopRingGraph.jsx
+
+Mark all changes // MODIFIED or // ADDED.

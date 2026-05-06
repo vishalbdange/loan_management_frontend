@@ -1,0 +1,80 @@
+Wire the onExploreClick callback from 
+ImpactBarView to open the explore page correctly.
+
+This is a small prompt — only two changes needed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN BlastRadiusPanel.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add handler: // ADDED
+
+  const handleExploreClick = ({ filterBy }) => {
+    const tab = activeTab === 'impact' 
+      ? 'impact' : 'failure';
+    const url = 
+      `/explore/blast-radius` +
+      `?app=${appShort}` +
+      `&tab=${tab}` +
+      `&depth=2` +
+      (filterBy ? `&filter=${filterBy}` : '');
+    window.open(url, '_blank');
+  };
+
+Pass to ImpactBarView:
+  onExploreClick={handleExploreClick}
+
+Also add "Open full explore view →" button 
+at the bottom of the panel, below RiskTable: 
+// ADDED
+
+  <button 
+    className={styles.explorePageBtn}
+    onClick={() => handleExploreClick({})}>
+    Open full explore view →
+  </button>
+
+  explorePageBtn styles:
+    float: right
+    background: none
+    border: none
+    color: #1E3A6E
+    font-size: 13px
+    font-weight: 600
+    cursor: pointer
+    padding: 8px 0
+    text-decoration: underline
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN ROUTER (App.jsx or routes file)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add route: // ADDED
+  <Route 
+    path="/explore/blast-radius" 
+    element={<ExploreBlastRadius />} 
+  />
+
+Create placeholder file 
+src/pages/ExploreBlastRadius.jsx
+with just: // ADDED
+
+  export default function ExploreBlastRadius() {
+    const params = 
+      new URLSearchParams(window.location.search);
+    return (
+      <div style={{padding: 40}}>
+        <h2>Explore: {params.get('app')}</h2>
+        <p>Filter: {params.get('filter') || 'none'}</p>
+        <p>Tab: {params.get('tab')}</p>
+        <p>Full explore view — coming in next prompt</p>
+      </div>
+    );
+  }
+
+This placeholder confirms routing works before 
+building the full explore page in Prompt 4.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE anything else.
+Mark changes // ADDED or // MODIFIED.

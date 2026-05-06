@@ -1,0 +1,248 @@
+In BlastRadiusPanel.jsx and as a new component, 
+build a two-panel "Impact View" layout that 
+becomes the DEFAULT view replacing the ring graph 
+as the primary visualization.
+
+Keep the existing HopRingGraph component — it 
+becomes the secondary "Ring View" tab. Do not 
+delete it.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEW COMPONENT: ImpactBarView.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create src/components/BlastRadius/ImpactBarView.jsx
+
+Props:
+  allNodes: []          — full API nodes array
+  selectedDepth: number — 1 or 2
+  rootAppName: string   — e.g. "TSEA"
+  onExploreClick: fn    — called with { filterBy }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Two columns side by side, equal width, 
+height 320px, each column independently 
+scrollable (overflow-y: auto).
+
+Divider: 1px solid #E0E0E0 between columns.
+
+Column headers:
+  Left:  "Hop 1 — Direct impact 
+          ({hop1Count} apps)"
+  Right: "Hop 2 — Click an app to explore"
+         (changes to "{name}'s connections 
+          ({count} shown of {total})" 
+          when a hop-1 row is selected)
+
+Header style: 12px, #888, uppercase, 
+letter-spacing 0.5px, padding-bottom 8px, 
+border-bottom 1px solid #F0F0F0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LEFT COLUMN — HOP-1 BAR LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Compute hop1Nodes:
+  allNodes
+    .filter(n => n.hops === 1)
+    .sort((a,b) => 
+      (b.incomingCount||0) - (a.incomingCount||0))
+
+For each hop1Node, render a bar row:
+
+  <div className={styles.barRow} 
+       onClick={() => setSelectedHop1(node.name)}
+       data-selected={selectedHop1 === node.name}>
+
+    <!-- App name -->
+    <span className={styles.appName}>
+      {node.name}
+    </span>
+
+    <!-- Bar -->
+    <div className={styles.barTrack}>
+      <div className={styles.barFill}
+           style={{
+             width: `${(node.incomingCount / maxIncoming) * 100}%`,
+             backgroundColor: getBarColor(node.incomingCount)
+           }}
+      />
+    </div>
+
+    <!-- Count -->
+    <span className={styles.count}>
+      {node.incomingCount || 0}
+    </span>
+
+  </div>
+
+barRow styles:
+  display: flex
+  align-items: center
+  gap: 8px
+  padding: 7px 10px
+  cursor: pointer
+  border-radius: 6px
+  border-left: 3px solid transparent
+  transition: background 150ms, border-color 150ms
+
+barRow[data-selected=true]:
+  background: #FFF8E1
+  border-left-color: #E09A3A
+
+barRow:hover (not selected):
+  background: #F9F9F9
+
+appName:
+  width: 72px
+  font-size: 12px
+  font-weight: 600
+  color: #333
+  flex-shrink: 0
+  white-space: nowrap
+  overflow: hidden
+  text-overflow: ellipsis
+
+barTrack:
+  flex: 1
+  height: 8px
+  background: #F0F0F0
+  border-radius: 4px
+  overflow: hidden
+
+barFill:
+  height: 100%
+  border-radius: 4px
+  transition: width 400ms ease
+
+getBarColor(incomingCount):
+  > 100 → '#E05C3A'  (red-coral)
+  > 30  → '#E09A3A'  (amber)
+  > 10  → '#7BC67E'  (muted green)
+  else  → '#9E9E9E'  (gray)
+
+count:
+  width: 36px
+  font-size: 11px
+  color: #666
+  text-align: right
+  flex-shrink: 0
+
+At the bottom of left column, outside the 
+scroll area:
+  "{hop1Count} direct dependencies"
+  font-size: 11px, color: #999, padding: 8px 10px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RIGHT COLUMN — HOP-2 DETAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+State:
+  const [selectedHop1, setSelectedHop1] = 
+    useState(null);
+
+When selectedHop1 is null:
+  Show empty state in right column:
+    Icon: ← (arrow)
+    Text: "Select an app on the left to see 
+           its connected apps"
+    Style: centered, color #BBB, font-size 13px
+
+When selectedHop1 is set:
+  Compute hop2ForSelected:
+    allNodes
+      .filter(n => 
+        n.hops === 2 &&
+        n.samplePath?.includes(selectedHop1)
+      )
+      .sort((a,b) => 
+        (b.incomingCount||0) - (a.incomingCount||0))
+
+  const top10 = hop2ForSelected.slice(0, 10)
+  const remaining = hop2ForSelected.length - 10
+  const maxIncoming2 = 
+    Math.max(...top10.map(n => n.incomingCount||0))
+
+  Render top10 using SAME barRow component/styles 
+  as left column. Not clickable (no onClick).
+  
+  Use maxIncoming2 (not global max) for bar widths 
+  so bars fill the right column properly.
+
+  If remaining > 0, after the 10 rows show:
+  
+    <div className={styles.exploreMore}
+         onClick={() => onExploreClick({ 
+           filterBy: selectedHop1 
+         })}>
+      + {remaining} more apps
+      <span>Open in explore view →</span>
+    </div>
+
+  exploreMore styles:
+    padding: 10px
+    background: #F5F5F5
+    border-radius: 6px
+    margin-top: 8px
+    cursor: pointer
+    font-size: 12px
+    color: #666
+    display: flex
+    justify-content: space-between
+    
+    span: color #1E3A6E, font-weight 600
+
+  exploreMore:hover:
+    background: #EEF2FF
+
+  If hop2ForSelected.length === 0:
+    Show: "{selectedHop1} has no further 
+           connections at depth 2"
+    Style: same as empty state above
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUTO-SELECT FIRST ROW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+On mount or when allNodes changes:
+  Auto-select the first hop-1 node 
+  (highest incomingCount) so the right 
+  column is never empty on first load.
+
+  setSelectedHop1(hop1Nodes[0]?.name ?? null)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IN BlastRadiusPanel.jsx — VIEW SWITCHER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a view toggle above the graph section:
+
+  [📊 Impact View]  [🔵 Ring View]
+
+  Default active: Impact View
+
+  Renders ImpactBarView when Impact View active.
+  Renders HopRingGraph when Ring View active.
+
+Toggle style: two small pill buttons,
+active = #1E3A6E background white text,
+inactive = white background #999 text,
+border: 1px solid #E0E0E0, border-radius: 20px,
+font-size: 12px, padding: 4px 14px.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- HopRingGraph.jsx (keep as-is)
+- MetricCards.jsx
+- RiskTable.jsx
+- Depth selector
+- Tab switching (Impact Analysis / Failure Risk)
+
+Mark all new code // ADDED.
+New file ImpactBarView.jsx is entirely new,
+no // ADDED markers needed there.

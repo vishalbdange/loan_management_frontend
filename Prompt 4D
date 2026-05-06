@@ -1,0 +1,137 @@
+Build the complete ExploreBlastRadius.jsx page,
+replacing the placeholder from Prompt 2.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DATA + PARAMS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Read from URL:
+  app     → appShort (required)
+  tab     → 'impact' | 'failure' (default: impact)
+  depth   → 1 | 2 | 3 (default: 2)
+  filter  → hop-1 app name to pre-filter (optional)
+
+Fetch on mount:
+  impact  → GET /api/applications/{app}/blast-radius
+  failure → GET /api/applications/{app}/failure-causes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Full page, white, max-width 1200px, centered,
+padding: 24px 32px.
+
+HEADER ROW:
+  Left: 
+    ← Back to Applications (href="/applications")
+    H1: "Blast Radius Explorer — {appShort}"
+    Subtitle (italic, #666, 14px):
+      impact:  "If {appShort} fails → who breaks?"
+      failure: "For {appShort} to run → what must 
+                stay healthy?"
+  Right:
+    [Impact Analysis] [Failure Risk] pill toggle
+    [⬇ Export CSV] button
+
+METRIC CARDS:
+  Reuse MetricCards component directly.
+  Same props as in BlastRadiusPanel.
+
+HOP BREAKDOWN BAR:
+  Horizontal bars, one per hop:
+
+  Hop 1  [████░░░░░░░░]  {hop1Count} apps
+  Hop 2  [████████░░░░]  {hop2Count} apps (cumulative)
+  Hop 3  [████████████]  {hop3Count} apps (cumulative)
+
+  Bar width = (cumulativeCount / totalCount) * 100%
+  Bar color = hop color (coral/amber/gray)
+  Clicking a bar row changes active depth 
+  (same as depth selector in popup)
+  Active row: bold label, colored left border 3px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MAIN VIEW: ImpactBarView (reused)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reuse ImpactBarView component directly.
+On the explore page it has more vertical space
+so set column height to 480px instead of 320px.
+
+If filter param is set, pass it as 
+initialSelectedHop1 prop to ImpactBarView
+so the right column pre-loads that filter.
+
+Add initialSelectedHop1 prop to ImpactBarView:
+  const [selectedHop1, setSelectedHop1] = 
+    useState(initialSelectedHop1 ?? 
+             hop1Nodes[0]?.name ?? null);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FULL DATA TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Below ImpactBarView, show a full sortable 
+filterable table of ALL nodes at selected depth.
+
+Reuse RiskTable component directly with 
+nodeFilter wired to ImpactBarView selection
+(same pattern as BlastRadiusPanel Prompt 3).
+
+Add above the table:
+  Search input: "Filter by app name..."
+  This filters table rows client-side by 
+  node.name or node.properties.App_Name
+
+Show ALL rows (no "show 10" cap on explore page).
+Table should be full width.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPORT CSV
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Export CSV button downloads all nodes as CSV:
+
+  Columns:
+    App Short, Full Name, Hop, Incoming Deps,
+    Outgoing Deps, Risk Level, Sample Path,
+    Technology Area, Technology Group
+
+  Filename: 
+    blast-radius-{appShort}-{date}.csv
+
+  Risk Level computed same as RiskTable.
+
+  Use plain JS Blob + URL.createObjectURL,
+  no external library.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOADING + ERROR STATES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Loading: 
+  Show skeleton for MetricCards (4 gray boxes)
+  Show skeleton for ImpactBarView 
+  (gray bars, left column 6 rows, right empty)
+
+Error:
+  Centered message: 
+  "Could not load blast radius data for {app}"
+  With retry button that re-fetches.
+
+failure-causes 404:
+  Same placeholder message as in BlastRadiusPanel.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- BlastRadiusPanel.jsx
+- ImpactBarView.jsx (only add 
+  initialSelectedHop1 prop)
+- HopRingGraph.jsx
+- MetricCards.jsx
+- RiskTable.jsx (already accepts nodeFilter)
+
+This file is ExploreBlastRadius.jsx only.
